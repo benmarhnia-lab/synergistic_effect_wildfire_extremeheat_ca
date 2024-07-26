@@ -5,7 +5,8 @@
 ### matched design + spatial Bayesian hierarchical model). 
 ### Effect modification by community characteristics were evaluated as well.
 ### Codes written and organized by Chen Chen on 3/13/2023
-### Updated on 7/26/2024 to incorporate mock datasets
+### Updated on 7/26/2024 to incorporate mock datasets and shareable dataset
+### shareable datasets can be downloaded at: https://drive.google.com/file/d/1UCctnt9r4C7FM1QuVtHQYpYtQ2Dd8HGD/view?usp=sharing
 ################################
 
 outdir1 <- "" ## working directory for the project
@@ -156,16 +157,6 @@ year.control <- function(exposed, control, years, nbuffer) {
         ndays <- yday(as.Date(paste0(yr, "-12-31"))) ## days in the year of exposure
         ndays_bf <- yday(as.Date(paste0(yr - 1, "-12-31"))) ## days in the year before exposure
         
-      #   sapply(e_buffer, function(dd) {
-      #     if(dd < 0) {
-      #       as.IDate(paste(yr-1, dd + ndays_bf), format = "%Y %j")
-      #     } else if (dd > ndays) {
-      #       as.IDate(paste(yr+1, dd - ndays), format = "%Y %j")
-      #     } else {
-      #       as.IDate(paste(yr, dd), format = "%Y %j")
-      #     }
-      #   })
-      # })
         sapply(e_buffer, function(dd) {
           if (dd < 0) {
             paste(yr-1, dd + ndays_bf)
