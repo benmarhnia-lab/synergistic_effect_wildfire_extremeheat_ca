@@ -5,9 +5,11 @@
 ### matched design + spatial Bayesian hierarchical model). 
 ### Effect modification by community characteristics were evaluated as well.
 ### Codes written and organized by Chen Chen on 3/13/2023
+### Updated on 7/26/2024 to incorporate mock datasets
 ################################
 
 outdir1 <- "" ## working directory for the project
+library(data.table)
 
 ## run case-crossover analysis at state-level
 library(survival)
@@ -154,16 +156,28 @@ year.control <- function(exposed, control, years, nbuffer) {
         ndays <- yday(as.Date(paste0(yr, "-12-31"))) ## days in the year of exposure
         ndays_bf <- yday(as.Date(paste0(yr - 1, "-12-31"))) ## days in the year before exposure
         
+      #   sapply(e_buffer, function(dd) {
+      #     if(dd < 0) {
+      #       as.IDate(paste(yr-1, dd + ndays_bf), format = "%Y %j")
+      #     } else if (dd > ndays) {
+      #       as.IDate(paste(yr+1, dd - ndays), format = "%Y %j")
+      #     } else {
+      #       as.IDate(paste(yr, dd), format = "%Y %j")
+      #     }
+      #   })
+      # })
         sapply(e_buffer, function(dd) {
-          if(dd < 0) {
-            as.IDate(paste(yr-1, dd + ndays_bf), format = "%Y %j")
+          if (dd < 0) {
+            paste(yr-1, dd + ndays_bf)
           } else if (dd > ndays) {
-            as.IDate(paste(yr+1, dd - ndays), format = "%Y %j")
+            paste(yr+1, dd - ndays)
           } else {
-            as.IDate(paste(yr, dd), format = "%Y %j")
+            paste(yr, dd)
           }
         })
       })
+      c_day <- as.IDate(c_day, format = "%Y %j")
+      
       c_pool <- control[control %in% c(c_day)]  ## potential control days after excluding days close to other exposure
       return(c(e_day, c_pool))
     })
@@ -301,6 +315,72 @@ names(ha)[1:2] <- c("zcta", "date")
 ha <- ha[ha$date > as.Date("2005-12-31") & ha$date < as.Date("2020-01-01"), .(zcta, date, circulatory, respiratory)]
 
 bobb.control.n <- tarik.control.n <- 4
+
+### create sampled controls for year_glmer and month_glmer
+nc <- numeric() ## number of exposed days for each exposure
+zctas <- unique(dt$zcta)
+for (exposure_ in c("eh1wf1", "eh1wf0", "eh0wf1")) {
+  set.seed(824)
+  out.year <- out.month <- numeric()
+  nn <- 0
+  for (i in 1:length(zctas)) {
+    ha_ <- ha[ha$zcta==zctas[i], ]
+    foo <- dt[dt$zcta==zctas[i], ]
+    foo <- merge(foo, ha_[, .(date, circulatory, respiratory)], by="date", all.x = TRUE)
+    setnafill(foo, fill=0, cols = c("circulatory", "respiratory")) ## fill in zeros for days without either csd or resp
+    foo$csdresp <- foo$circulatory + foo$respiratory
+    
+    ## potential control identification method from Bobb et al--remove those close to exposure
+    buffer_days <- foo$date[foo$eh==1 | foo$wf==1]
+    buffer_days <- unique(c(buffer_days-3, buffer_days-2, buffer_days-1, buffer_days, buffer_days + 1, buffer_days + 2, buffer_days + 3))
+    day00_bobb <- foo$date[!(foo$date %in% buffer_days)]
+    
+    ## identify exposed days using Bobb method
+    days <- foo$date[foo$eh==as.numeric(substring(exposure_, 3, 3)) & foo$wf==as.numeric(substring(exposure_, 6, 6))]
+    
+    if (length(days) > 0) {
+      ## identify potential control days for each exposed day based on Bobb et al. method
+      baz <- year.control(days, day00_bobb, 2006:2019, 7)
+      for (dd in 1:length(baz)) {
+        if (length(baz[[dd]]) > 1) {
+          temp <- c_pool <- e_day <- numeric()
+          c_pool <- baz[[dd]][-1]
+          e_day <- baz[[dd]][1]
+          sel <- c_pool[sample(1:length(c_pool), min(bobb.control.n, length(c_pool)), replace = FALSE)]
+          temp <- data.frame(date = c(e_day, sel), exposed = c(1, rep(0, length(sel))), id = paste(zctas[i], dd, sep="_"), available.c = length(c_pool))
+          if (class(temp)=="data.frame") {
+            temp <- merge(temp, foo, by = "date", all.x = TRUE)
+            out.year <- rbind(out.year, temp)
+          }
+        }
+      }
+      
+      ## control identification method from Tarik: same year within 30 days before and after the exposure and exclude these within three days of an event (second is the same as bobb et al. method)
+      baz2 <- month.control(days, day00_bobb, 30) 
+      for (dd in 1:length(baz2)) {
+        if (length(baz2[[dd]]) > 1) {
+          temp <- c_pool <- e_day <- numeric()
+          c_pool <- baz2[[dd]][-1]
+          e_day <- baz2[[dd]][1]
+          sel <- c_pool[sample(1:length(c_pool), min(tarik.control.n, length(c_pool)), replace = FALSE)]
+          temp <- data.frame(date = c(e_day, sel), exposed = c(1, rep(0, length(sel))), id = paste(zctas[i], dd, sep="_"), available.c = length(c_pool))
+          if (class(temp)=="data.frame") {
+            temp <- merge(temp, foo, by = "date", all.x = TRUE)
+            out.month <- rbind(out.month, temp)
+          }
+        }
+      }
+      nn <- nn + length(days)
+    }
+    
+    if (i%%500==0) cat("\n", exposure_, "finished zcta #", i, "\n")
+  }
+  nc <- c(nc, nn)
+  saveRDS(out.year, file.path(outdir1, "data", paste0(dataset, "_", exposure_, "_yearcontrol.rds")))
+  saveRDS(out.month, file.path(outdir1, "data", paste0(dataset, "_", exposure_, "_monthcontrol.rds")))
+} 
+print(nc)
+
 events <- c("csdresp")
 nms <- c(paste(rep(c("year_glmer", "month_glmer"), each=4), rep(c("rr", "rr_ll", "rr_ul", "ngrp"), times=2), sep="_"), 
          paste(rep(c("year_wt", "month_wt"), each=2), rep(c("rr", "ngrp"), times=2), sep="_"))
@@ -313,7 +393,7 @@ bar <- data.frame(zcta=rep(unique(dt$zcta), each = length(events)), event = even
 fail <- numeric()
 set.seed(824)
 
-
+## doing year_wt and month_wt analyses
 for (i in 1:nrow(bar)) {
   event_ <- bar$event[i]
   ha_ <- ha[ha$zcta==bar$zcta[i], ]
@@ -363,8 +443,9 @@ for (i in 1:nrow(bar)) {
 
 pop <- fread(file.path(outdir1, "data", "census_2010_pop.csv"))[, .(pop, zcta)]
 
+## doing year_glmer and month_glmer analyses
 for (exposure_ in c("eh1wf1", "eh1wf0", "eh0wf1")) {
-  ## use dataset created in state-wise sensitivity analysis--it involves sampling so better use the same dataset
+  ## use dataset for created year_glmer and month_glmer in codes above--it involves sampling so better use the same dataset
   out.year <- readRDS(file.path(outdir1, "data", paste0(dataset, "_", exposure_, "_yearcontrol.rds")))
   out.month <- readRDS(file.path(outdir1, "data", paste0(dataset, "_", exposure_, "_monthcontrol.rds")))
   
@@ -407,18 +488,19 @@ write.csv(fail, file.path(outdir1, "results", paste0(dataset, "_specific_fail.cs
 #################
 
 ## Apply Bayesian spatial analysis to incorporate spatial heterogeneity into the estimates for reri
+## the starting value, tunning value, and priors in spLM need to be updated for mock dataset--currently for the real data
 library(sp)
-library(gstat) 
+library(gstat)
 library("spBayes")
-library(coda)
-library(MBA)
 
-library(rgdal)
-library(sf)
-library(ggplot2)
-library(FRK)
-library(fields)
-library(RColorBrewer)
+# library(coda)
+# library(MBA)
+# library(rgdal)
+# library(sf)
+# library(ggplot2)
+# library(FRK)
+# library(fields)
+# library(RColorBrewer)
 
 outdir2 <- file.path(outdir1, "figures", "spatial")
 if (!dir.exists(outdir2)) dir.create(outdir2)
@@ -432,7 +514,7 @@ methods <- c("month_wt", "year_wt", "month_glm", "year_glm")
 ## read in data for analysis
 bar <- fread(file.path(outdir1, "results", paste0(dataset, "_specific.csv")))
 fail <- fread(file.path(outdir1, "results", paste0(dataset, "_specific_fail.csv")))
-coords <- read.csv(file.path(outdir1, "results", paste0("zcta_list_", dataset, ".csv")), as.is = TRUE) ## same as above but with population info
+coords <- read.csv(file.path(outdir1, "data", paste0("zcta_list_", dataset, ".csv")), as.is = TRUE) ## same as above but with population info
 bar <- merge(bar, coords, by = "zcta", all.x=TRUE)
 
 ## change glmer to glm
@@ -563,34 +645,29 @@ sink()
 ## Meta regression
 ## I also did linear regression for comparison
 ## All indicators were coded so that higher value represents better socioeconomical status (SES) based on previous believes, except for the ethnicity groups.  
+## variable "nc" needs to be updated for mock dataset--currently for the real data
 library(meta)
 ##################
 dataset <- "eh85_wf15_binary_1772zcta"
 
 methods <- c("month_wt", "year_wt", "month_glm", "year_glm")
-nc <- c(991, 994, 981, 990) #zipcodes included for each method
+nc <- c(991, 994, 981, 990) #zipcodes included for each method, which would be different when ran with mock dataset
 names(nc) <- methods
 
-## read in variables for meta regression
-hpi <- fread(file.path(outdir1, "zip_selected_hpi3_hpi_wt_041823.csv"))
+## read in pre-pooling estimates for sensitivity
+bar <- fread(file.path(outdir1, "results", paste0(dataset, "_specific.csv")))
+names(bar) <- gsub("glmer", "glm", names(bar))
 
-## population density
-zcta.sp <- readOGR(file.path(outdir1, "tl_2010_06_zcta510",
-                             "tl_2010_06_zcta510.shp"), stringsAsFactors = FALSE)
-area <- zcta.sp@data[, c("ZCTA5CE10", "ALAND10")]
-area$ZCTA5CE10 <- as.numeric(area$ZCTA5CE10)
-hpi <- merge(hpi, area, by.x="ZIP", by.y="ZCTA5CE10", all.x=TRUE) 
-hpi$ALAND10 <- as.numeric(hpi$ALAND10)
-hpi$popden <- hpi$pop/hpi$ALAND10 * 10000 ## so that it's per 10k
+## read in variables for meta regression
+hpi <- fread(file.path(outdir1, "data", "zip_selected_hpi3_hpi_wt_041823_clean.csv"))
 ## after transformation, all variables are true to its meaning and higher better
 hpi_vbs <- c("employed", "abovepoverty", "bachelorsed", 
              "treecanopy", "AC", "insured", "percapitaincome", "automobile",
              "white", "black", "asian", "latino", "NativeAm","PacificIsl",
              "popden")
-hpi <- hpi[!is.na(employed) & !is.na(treecanopy), c("ZIP", hpi_vbs), with=FALSE]
 ### using more EM variables
 out <- numeric()
-sink(file.path(outdir1, "summary of running meta regression reri_022723.txt"))
+sink(file.path(outdir1, "summary of running meta regression reri_041823.txt"))
 for (m in methods) {
   ## reri after pooling
   bayesDF <- fread(file.path(outdir1, "results", paste0(dataset, "_reri_", m, nc[m], "zcta.csv")))
@@ -644,6 +721,6 @@ for (m in methods) {
   out <- rbind(out, temp)
   estimate <- nms <- g <- g2 <- m2 <- temp <- NULL
 }
-write.csv(out, file.path(outdir1, "results",  paste0(dataset, "_reri_metaregression_022723.csv")), row.names = FALSE)
+write.csv(out, file.path(outdir1, "results",  paste0(dataset, "_reri_metaregression_041823.csv")), row.names = FALSE)
 sink()
 ##################
