@@ -629,21 +629,25 @@ for (m in methods) {
   print(summary(bayesDF$SNR))
   print(summary(bayesDF$truncSNR))
   write.csv(bayesDF, file.path(outdir1, "results", paste0(dataset, "_reri_", m, nrow(bayesDF), "zcta.csv")))
+  nc <- c(nc, nrow(bayesDF))
 }
+names(nc) <- methods
+cat("zipcodes included for methods are:", "\n")
+print(nc)
 sink()
 ##################
 
 ## Meta regression
 ## I also did linear regression for comparison
 ## All indicators were coded so that higher value represents better socioeconomical status (SES) based on previous believes, except for the ethnicity groups.  
-## variable "nc" needs to be updated for mock dataset--currently for the real data
+## variable "nc" needs to inherited from the previous chunk
 library(meta)
 ##################
 dataset <- "eh85_wf15_binary_1772zcta"
 
 methods <- c("month_wt", "year_wt", "month_glm", "year_glm")
-nc <- c(991, 994, 981, 990) #zipcodes included for each method, which would be different when ran with mock dataset
-names(nc) <- methods
+# nc <- c(991, 994, 981, 990) #zipcodes included for each method
+# names(nc) <- methods
 
 ## read in pre-pooling estimates for sensitivity
 bar <- fread(file.path(outdir1, "results", paste0(dataset, "_specific.csv")))
