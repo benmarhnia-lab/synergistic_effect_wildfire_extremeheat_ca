@@ -3,3 +3,4 @@ This directory contains codes for the study: Vulnerability to Compound Climate H
 
 Citation for corresponding publication: Chen C, Schwarz L, Rosenthal N, Marlier ME, Benmarhnia T. Exploring spatial heterogeneity in synergistic effects of compound climate hazards: Extreme heat and wildfire smoke on cardiorespiratory hospitalizations in California. Sci Adv. 2024;10(5):eadj7264. doi:10.1126/sciadv.adj7264
 
+For sharable datasets, please download them via this link (see details in the readme file of "data" folder): https://drive.google.com/file/d/1UCctnt9r4C7FM1QuVtHQYpYtQ2Dd8HGD/view?usp=sharing
