@@ -4,8 +4,9 @@
 ## meaningful association is expected in the dataset
 ##################
 
-## To note, I shared a few processed datasets in the "data" folder as there's no 
-## privacy concern--please download them into the data folder before running this code
+## To note, I shared a few other processed datasets without privacy concern
+## please download them into the data folder before running this code
+## https://drive.google.com/file/d/1UCctnt9r4C7FM1QuVtHQYpYtQ2Dd8HGD/view?usp=sharing
 
 ## "eh85_wf15_binary_1772zcta_0619.rds" for exposure time-series data
 ## "zcta_list_eh85_wf15_binary_1772zcta.csv" for a list of California zctas with exposure and health data
