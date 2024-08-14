@@ -1,4 +1,4 @@
-This folder should contain sharable datasets and a mock dataset to facilitate replication of this project. The datasets can be downloaded via this link: https://zenodo.org/records/13323842
+This folder should contain sharable datasets and a mock dataset to facilitate replication of this project. The datasets can be downloaded via this link: https://zenodo.org/records/13323842   
 "zcta_list_eh85_wf15_binary_1772zcta.csv" contains a list of California zctas with exposure and health data available for our analyses.
 
 "census_2010_pop.csv" contains zcta centroids and popualtion (2010 census).
